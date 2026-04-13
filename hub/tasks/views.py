@@ -1,60 +1,95 @@
-from django.shortcuts import render
-from django.http import HttpResponse
-from rest_framework import viewsets
-from .models import TaskModel ,CommentModel
-from .serializers import TaskSerializers , CommentSerializers
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
-from rest_framework.response import responses
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
+from django.db.models import Q
+from django.utils import timezone
 
-# Create your views here.
+from .models import TaskModel, CommentModel
+from .serializers import TaskSerializers, CommentSerializers
+
 
 class TaskViewset(viewsets.ModelViewSet):
     serializer_class = TaskSerializers
-    permission_classes = [IsAuthenticated]
-    
-    
-    # def get_queryset(self):
-    #     return TaskModel.objects.filter(assigned_to=self.request.user)
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-     user = self.request.user
-     return TaskModel.objects.filter(assigned_to=user)|TaskModel.objects.filter(project__created_by=user)
+        user = self.request.user
 
+        # FIX: updated FK lookup from "project__created_by" — this still works
+        # because we're filtering on the ProjectModel's created_by field,
+        # not using the related_name directly here.
+        # Also updated assigned_to lookup — the field name on the model is still
+        # "assigned_to", the related_name change only affects REVERSE access.
+        queryset = TaskModel.objects.filter(
+            Q(assigned_to=user) | Q(project__created_by=user)
+        ).distinct()  # distinct() here too — same M2M join issue can occur
 
-    # ✅ ADD THIS METHOD
+        project_id = self.request.query_params.get("project")
+        if project_id:
+            queryset = queryset.filter(project=project_id)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        project_id = self.request.data.get("project")
+
+        from projects.models import ProjectModel
+        try:
+            project = ProjectModel.objects.get(id=project_id)
+        except ProjectModel.DoesNotExist:
+            raise PermissionDenied("Project not found.")
+
+        if project.created_by != self.request.user:
+            raise PermissionDenied("Only the project owner can create tasks.")
+
+        serializer.save()
+
+    def perform_update(self, serializer):
+        task = self.get_object()
+
+        if task.project.created_by != self.request.user:
+            raise PermissionDenied("Only the project owner can update tasks.")
+
+        new_status = self.request.data.get("status", task.status)
+
+        if new_status == "Done" and task.status != "Done":
+            serializer.save(completed_at=timezone.now().date())
+        elif new_status != "Done" and task.status == "Done":
+            serializer.save(completed_at=None)
+        else:
+            serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.project.created_by != self.request.user:
+            raise PermissionDenied("Only the project owner can delete tasks.")
+        instance.delete()
+
     @action(detail=False, methods=["get"])
     def stats(self, request):
         user = request.user
 
         queryset = TaskModel.objects.filter(
             Q(assigned_to=user) | Q(project__created_by=user)
-        )
-
-        completed = queryset.filter(status="Done").count()
-        in_progress = queryset.filter(status="In Progress").count()
-        todo = queryset.filter(status="Todo").count()
+        ).distinct()
 
         return Response({
-            "completed": completed,
-            "in_progress": in_progress,
-            "todo": todo,
-            "total": queryset.count()
+            "completed": queryset.filter(status="Done").count(),
+            "in_progress": queryset.filter(status="In Progress").count(),
+            "todo": queryset.filter(status="Todo").count(),
+            "total": queryset.count(),
         })
-    
-## Comment Model
+
+
 class CommentViewset(viewsets.ModelViewSet):
     serializer_class = CommentSerializers
-    permission_classes = [IsAuthenticated]
-    
-    
-    ## Allowing only assigned users and project owner to see the comments 
+    permission_classes = [permissions.IsAuthenticated]
+
     def get_queryset(self):
-     user = self.request.user
-     return CommentModel.objects.filter(task__assigned_to=user)|CommentModel.objects.filter(task__project__created_by=user)
-    
-    ## Only logged in user can do the comments none other than that  
+        user = self.request.user
+        return CommentModel.objects.filter(
+            Q(task__assigned_to=user) | Q(task__project__created_by=user)
+        ).distinct()
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)

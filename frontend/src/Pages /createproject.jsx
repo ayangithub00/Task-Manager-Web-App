@@ -1,48 +1,85 @@
-import { useState } from "react";
+// ─────────────────────────────────────────────
+// createproject.jsx  →  src/Pages/createproject.jsx
+// ─────────────────────────────────────────────
+// Key changes:
+// 1. Removed the "username" field (backend ignores it, derives from JWT)
+// 2. Members are now picked from a DROPDOWN of real users fetched from /api/v1/users/
+//    instead of typing usernames blindly (which could result in typos / invalid users)
+// 3. If user is not an owner, we redirect them — members can't create projects
+
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { fetchAllUsers } from "../API/auth";
 import {
-  FolderPlus,
-  FileText,
-  User,
-  Users,
-  ArrowLeft,
-  ArrowRight,
-  X,
+  FolderPlus, FileText, Users,
+  ArrowLeft, ArrowRight, X, UserPlus,
 } from "lucide-react";
 
 const CreateProject = () => {
   const navigate = useNavigate();
 
+  // If the logged-in user is not an owner, redirect to dashboard immediately.
+  // This is a FRONTEND guard — the backend also blocks it, but this gives a better UX.
+  const role = localStorage.getItem("role");
+  if (role !== "owner") {
+    navigate("/dashboard");
+    return null;
+  }
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    username: "",
-    members: "",
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [memberTags, setMemberTags] = useState([]);
-  const [memberInput, setMemberInput] = useState("");
+
+  // allUsers → fetched from /api/v1/users/ → array of {id, username, role}
+  const [allUsers, setAllUsers] = useState([]);
+
+  // selectedMembers → array of user objects the owner has chosen to add
+  const [selectedMembers, setSelectedMembers] = useState([]);
+
+  // Fetch all available users when the component loads
+  // so the owner can pick from a real dropdown instead of typing usernames
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const users = await fetchAllUsers();
+        // Only show members in the dropdown — owners manage, members work
+        const memberUsers = Array.isArray(users)
+          ? users.filter((u) => u.role === "member")
+          : [];
+        setAllUsers(memberUsers);
+      } catch (err) {
+        console.error("Failed to load users:", err);
+      }
+    };
+    loadUsers();
+  }, []);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Called when owner picks a user from the dropdown
   const handleAddMember = (e) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      const value = memberInput.trim().replace(",", "");
-      if (value && !memberTags.includes(value)) {
-        setMemberTags([...memberTags, value]);
-        setMemberInput("");
-      }
+    const userId = Number(e.target.value);
+    if (!userId) return;
+
+    // Find the full user object from allUsers
+    const user = allUsers.find((u) => u.id === userId);
+
+    // Don't add duplicates
+    if (user && !selectedMembers.find((m) => m.id === user.id)) {
+      setSelectedMembers([...selectedMembers, user]);
     }
+
+    // Reset the dropdown back to placeholder after selection
+    e.target.value = "";
   };
 
-  const handleRemoveMember = (memberToRemove) => {
-    setMemberTags(memberTags.filter((member) => member !== memberToRemove));
+  // Remove a member from the selection by clicking the X on their tag
+  const handleRemoveMember = (userId) => {
+    setSelectedMembers(selectedMembers.filter((m) => m.id !== userId));
   };
 
   const handleSubmit = async (e) => {
@@ -61,18 +98,18 @@ const CreateProject = () => {
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,
-          username: formData.username,
-          members: memberTags,
+          // Send member USERNAMES — the backend resolves them to User objects
+          // and adds them to the project's M2M members field
+          members: selectedMembers.map((m) => m.username),
         }),
       });
 
       const data = await response.json();
-      console.log("CREATE PROJECT:", data);
 
       if (response.ok) {
         navigate("/dashboard");
       } else {
-        alert("Error creating project");
+        alert(data.detail || "Error creating project");
       }
     } catch (error) {
       console.error(error);
@@ -84,6 +121,7 @@ const CreateProject = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
@@ -102,12 +140,14 @@ const CreateProject = () => {
 
       <main className="max-w-3xl mx-auto px-6 py-8">
         <div className="bg-white rounded-2xl border border-slate-200 p-8">
+
           {/* Icon */}
           <div className="w-14 h-14 rounded-2xl bg-slate-900 flex items-center justify-center mb-6">
             <FolderPlus className="h-7 w-7 text-white" />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+
             {/* Project Name */}
             <div className="space-y-2">
               <label htmlFor="name" className="text-sm font-medium text-slate-900">
@@ -145,64 +185,65 @@ const CreateProject = () => {
               />
             </div>
 
-            {/* Username */}
+            {/* ── ADD MEMBERS DROPDOWN ── */}
+            {/* Instead of typing usernames blindly, owner picks from a real list.
+                The dropdown shows all users with role='member'.
+                Each picked user appears as a removable tag below the dropdown. */}
             <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium text-slate-900">
-                Your Username
+              <label className="text-sm font-medium text-slate-900">
+                Add Team Members
               </label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
-                  required
-                />
-              </div>
-            </div>
 
-            {/* Members */}
-            <div className="space-y-2">
-              <label htmlFor="members" className="text-sm font-medium text-slate-900">
-                Team Members
-              </label>
+              {/* Dropdown to pick members */}
               <div className="relative">
-                <Users className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
-                <div className="min-h-12 pl-12 pr-4 py-2 rounded-xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-slate-900 focus-within:border-transparent transition-all">
-                  <div className="flex flex-wrap gap-2">
-                    {memberTags.map((member, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-sm"
-                      >
-                        {member}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMember(member)}
-                          className="hover:text-slate-900"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <input
-                      id="members"
-                      type="text"
-                      placeholder={memberTags.length === 0 ? "Type username and press Enter" : ""}
-                      value={memberInput}
-                      onChange={(e) => setMemberInput(e.target.value)}
-                      onKeyDown={handleAddMember}
-                      className="flex-1 min-w-32 h-8 bg-transparent text-slate-900 placeholder:text-slate-400 focus:outline-none"
-                    />
-                  </div>
-                </div>
+                <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                <select
+                  onChange={handleAddMember}
+                  defaultValue=""
+                  className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all appearance-none cursor-pointer"
+                >
+                  <option value="" disabled>Select a member to add...</option>
+                  {allUsers
+                    // Filter out already-selected members from the dropdown
+                    .filter((u) => !selectedMembers.find((m) => m.id === u.id))
+                    .map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.username}
+                      </option>
+                    ))
+                  }
+                </select>
               </div>
+
+              {/* Selected members shown as removable tags */}
+              {selectedMembers.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {selectedMembers.map((member) => (
+                    <span
+                      key={member.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-sm"
+                    >
+                      <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-xs">
+                        {member.username.charAt(0).toUpperCase()}
+                      </span>
+                      {member.username}
+                      {/* X button removes this member from selection */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMember(member.id)}
+                        className="hover:text-red-300 transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <p className="text-xs text-slate-500">
-                Press Enter or comma to add members
+                {allUsers.length === 0
+                  ? "No members available to add yet."
+                  : "Select members from the dropdown above."}
               </p>
             </div>
 

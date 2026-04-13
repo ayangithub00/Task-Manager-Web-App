@@ -1,35 +1,67 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
-  FileText,
-  AlignLeft,
-  Flag,
-  Calendar,
-  CircleDot,
-  Plus,
-  ChevronDown,
+  FileText, AlignLeft, Flag, Calendar,
+  CircleDot, Plus, ChevronDown, UserCheck,
 } from "lucide-react";
 
-const TaskForm = ({ onAddTask }) => {
+const BASE_URL = "http://127.0.0.1:8000/api/v1";
+
+// TaskForm now fetches its own members using projectId.
+// This means it doesn't depend on the parent (projectdetail.jsx)
+// passing projectMembers correctly — it goes and gets them itself.
+// This is the most reliable approach because:
+//   1. It runs exactly when the form is shown (not when the page first loads)
+//   2. It always gets fresh data from the /members/ endpoint we added
+//   3. If the parent had stale/empty members, this bypasses that entirely
+
+const TaskForm = ({ onAddTask, projectId }) => {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     status: "Todo",
     priority: "medium",
     due_date: "",
+    assigned_to: "",
   });
+
+  // members → fetched directly inside this component using projectId
+  const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Fetch project members as soon as the form mounts (when owner clicks "Add Task")
+  useEffect(() => {
+    const fetchMembers = async () => {
+      const token = localStorage.getItem("token");
+      try {
+        const res = await fetch(`${BASE_URL}/project/${projectId}/members/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        // data should be [{id, username, role}, ...]
+        setMembers(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Failed to fetch members:", err);
+        setMembers([]);
+      } finally {
+        setLoadingMembers(false);
+      }
+    };
+
+    if (projectId) fetchMembers();
+  }, [projectId]); // re-runs if projectId changes
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.title) return;
-
+    if (!formData.assigned_to) {
+      alert("Please select a team member to assign this task to.");
+      return;
+    }
     setIsLoading(true);
     try {
       await onAddTask(formData);
@@ -39,6 +71,7 @@ const TaskForm = ({ onAddTask }) => {
         status: "Todo",
         priority: "medium",
         due_date: "",
+        assigned_to: "",
       });
     } finally {
       setIsLoading(false);
@@ -54,6 +87,7 @@ const TaskForm = ({ onAddTask }) => {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
         {/* Title */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-slate-700">Title</label>
@@ -103,7 +137,41 @@ const TaskForm = ({ onAddTask }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {/* Assign To dropdown — populated from /project/{id}/members/ */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Assign To</label>
+          <div className="relative">
+            <UserCheck className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <select
+              name="assigned_to"
+              value={formData.assigned_to}
+              onChange={handleChange}
+              className="w-full h-11 pl-10 pr-10 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all text-sm appearance-none cursor-pointer"
+              required
+            >
+              {/* Show a loading state while members are being fetched */}
+              {loadingMembers ? (
+                <option value="">Loading members...</option>
+              ) : members.length === 0 ? (
+                // If no members found, tell the owner why
+                <option value="">No members in this project yet</option>
+              ) : (
+                <>
+                  <option value="">Select member...</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.username} ({member.role})
+                    </option>
+                  ))}
+                </>
+              )}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
+
         {/* Status */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-slate-700">Status</label>
@@ -143,10 +211,10 @@ const TaskForm = ({ onAddTask }) => {
         </div>
       </div>
 
-      {/* Submit Button */}
+      {/* Submit */}
       <button
         type="submit"
-        disabled={isLoading || !formData.title}
+        disabled={isLoading || !formData.title || loadingMembers}
         className="h-11 px-6 rounded-lg bg-slate-900 text-white font-medium flex items-center justify-center gap-2 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm"
       >
         {isLoading ? (
