@@ -6,15 +6,9 @@ User = get_user_model()
 
 
 class MemberSerializer(serializers.ModelSerializer):
-    # SerializerMethodField lets us write custom logic for a field.
-    # We use it here for "role" because if a user was created before the role
-    # field existed (or has an empty/null role), we default to "member"
-    # instead of returning null — which would break the frontend dropdown.
     role = serializers.SerializerMethodField()
 
     def get_role(self, obj):
-        # obj is the User instance
-        # Return the role if it exists, otherwise default to "member"
         return obj.role if obj.role else "member"
 
     class Meta:
