@@ -16,14 +16,10 @@ class TaskViewset(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        # FIX: updated FK lookup from "project__created_by" — this still works
-        # because we're filtering on the ProjectModel's created_by field,
-        # not using the related_name directly here.
-        # Also updated assigned_to lookup — the field name on the model is still
-        # "assigned_to", the related_name change only affects REVERSE access.
+       
         queryset = TaskModel.objects.filter(
             Q(assigned_to=user) | Q(project__created_by=user)
-        ).distinct()  # distinct() here too — same M2M join issue can occur
+        ).distinct()  
 
         project_id = self.request.query_params.get("project")
         if project_id:
