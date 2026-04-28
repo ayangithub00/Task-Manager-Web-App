@@ -25,7 +25,7 @@ class TaskSerializers(serializers.ModelSerializer):
  
 class CommentSerializers(serializers.ModelSerializer):
  
-    # Same idea — show username instead of just user ID in comment responses.
+   
     username = serializers.CharField(source="user.username", read_only=True)
  
     class Meta:
