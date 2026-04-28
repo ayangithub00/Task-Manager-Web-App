@@ -16,13 +16,6 @@ class ProjectViewset(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        # FIX: added .distinct() at the end.
-        #
-        # Without distinct(), Django's M2M join causes duplicate rows.
-        # Example: a project with 4 members returns that project 4 times
-        # because the SQL JOIN produces one row per member.
-        # .distinct() tells the database to return each project only ONCE
-        # regardless of how many members it has.
         return (
             ProjectModel.objects
             .filter(members=user) | ProjectModel.objects.filter(created_by=user)
@@ -55,9 +48,7 @@ class ProjectViewset(viewsets.ModelViewSet):
             raise PermissionDenied("Only the project owner can delete this project.")
         instance.delete()
 
-    # GET /api/v1/project/{id}/members/
-    # Returns [{id, username, role}] for all members of this project.
-    # Used by TaskForm to populate the "Assign To" dropdown.
+    
     @action(detail=True, methods=["get"], url_path="members")
     def members(self, request, pk=None):
         project = self.get_object()
