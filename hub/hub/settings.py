@@ -81,10 +81,11 @@ WSGI_APPLICATION = 'hub.wsgi.application'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 import dj_database_url
+import os
 
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgresql://postgres:1234@localhost:5432/devhub_db',
+        default=os.environ.get('DATABASE_URL', 'postgresql://postgres:1234@localhost:5432/devhub_db'),
         conn_max_age=600
     )
 }
