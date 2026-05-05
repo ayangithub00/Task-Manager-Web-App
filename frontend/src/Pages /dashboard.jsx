@@ -36,7 +36,7 @@ const Dashboard = () => {
     const fetchAll = async () => {
       const token = localStorage.getItem("token");
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/v1/dashboard/", {
+        const res = await fetch("https://task-manager-web-app-u927.onrender.com/api/v1/dashboard/", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const dashboardData = await res.json();
@@ -57,7 +57,7 @@ const Dashboard = () => {
     const token = localStorage.getItem("token");
     if (!window.confirm("Are you sure you want to delete this project?")) return;
     try {
-      await fetch(`http://127.0.0.1:8000/api/v1/project/${id}/`, {
+      await fetch(`https://task-manager-web-app-u927.onrender.com/api/v1/project/${id}/`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

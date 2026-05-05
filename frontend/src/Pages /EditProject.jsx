@@ -24,7 +24,7 @@ const EditProject = () => {
       const token = localStorage.getItem("token");
 
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/v1/project/${id}/`, {
+        const res = await fetch(`https://task-manager-web-app-u927.onrender.com/api/v1/project/${id}/`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -59,7 +59,7 @@ const EditProject = () => {
     const token = localStorage.getItem("token");
 
     try {
-      await fetch(`http://127.0.0.1:8000/api/v1/project/${id}/`, {
+      await fetch(`https://task-manager-web-app-u927.onrender.com/api/v1/project/${id}/`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

@@ -16,7 +16,7 @@ import {
   CheckCircle2, Clock, AlertCircle,
 } from "lucide-react";
 
-const BASE_URL = "http://127.0.0.1:8000/api/v1";
+const BASE_URL = "https://task-manager-web-app-u927.onrender.com/api/v1";
 
 const ProjectDetail = () => {
   const { id } = useParams();

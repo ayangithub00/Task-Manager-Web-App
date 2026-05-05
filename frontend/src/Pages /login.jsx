@@ -30,7 +30,7 @@ export default function Login() {
 
     try {
       // Step 1: Send username + password to get JWT tokens
-      const response = await fetch("http://127.0.0.1:8000/api/v1/auth/login/", {
+      const response = await fetch("https://task-manager-web-app-u927.onrender.com/api/v1/auth/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -47,7 +47,7 @@ export default function Login() {
 
         // Step 3: Fetch the dashboard to get the user's role
         // We need role RIGHT NOW so the dashboard knows what UI to show
-        const dashRes = await fetch("http://127.0.0.1:8000/api/v1/dashboard/", {
+        const dashRes = await fetch("https://task-manager-web-app-u927.onrender.com/api/v1/dashboard/", {
           headers: { Authorization: `Bearer ${data.access}` },
         })
         const dashData = await dashRes.json()
