@@ -1,6 +1,6 @@
 // src/api/project.js
 
-const BASE_URL = "http://127.0.0.1:8000/api/v1";
+const BASE_URL = "https://task-manager-web-app-u927.onrender.com/api/v1";
 
 export const getProjects = async () => {
   const token = localStorage.getItem("token");

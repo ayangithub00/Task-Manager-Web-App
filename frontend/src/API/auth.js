@@ -4,7 +4,7 @@
 // We keep API calls in separate files (not inside components)
 // so the code is clean and easy to maintain.
  
-const BASE_URL = "http://127.0.0.1:8000/api/v1";
+const BASE_URL = "https://task-manager-web-app-u927.onrender.com/api/v1";
  
  
 // ─────────────────────────────────────────────
